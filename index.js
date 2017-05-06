@@ -1,30 +1,46 @@
+/* eslint-env node */
 'use strict';
 var path = require('path');
 
 module.exports = {
-  name: 'ember-faker',
+  name: 'faker',
 
-  included: function included(app) {
-    this._super.included.apply(this, arguments);
+  options: {
+    nodeAssets: {
+      'faker': function() {
+        return {
+          enabled: this.app.env !== 'production' || this.addonConfig.enabled,
+          import: ['index.js']
+        }
+      }
+    }
+  },
 
-    // Fixes an issue if references as *dependency* in package.json, not as
-    // *devDependency*.
-    // See: https://github.com/ember-cli/ember-cli/issues/5747
-    if (typeof app.import !== 'function' && app.app) {
-      app = app.app;
+
+  included() {
+    let app;
+
+    // Source: https://github.com/samselikoff/ember-cli-mirage/blob/v0.3.1/index.js#L23-L39
+    // If the addon has the _findHost() method (in ember-cli >= 2.7.0), we'll just
+    // use that.
+    if (typeof this._findHost === 'function') {
+      app = this._findHost();
+    } else {
+      // Otherwise, we'll use this implementation borrowed from the _findHost()
+      // method in ember-cli.
+      let current = this;
+      do {
+        app = current.app || app;
+      } while (current.parent.parent && (current = current.parent));
     }
 
     this.app = app;
-    var addonConfig = this.app.project.config(app.env)['ember-faker'];
+    this.addonConfig = this.app.project.config(app.env)['ember-faker'] || {};
 
-    if (app.env !== 'production' || addonConfig.enabled) {
-      app.import(app.bowerDirectory + '/Faker/build/build/faker.js');
-      app.import('vendor/ember-faker/shim.js', {
-        type: 'vendor',
-        exports: { 'faker': ['default'] }
-      });
-    }
+    // Call super after initializing config so we can use _shouldIncludeFiles for the node assets
+    this._super.included.apply(this, arguments);
   },
+
 
   blueprintsPath: function() {
     return path.join(__dirname, 'blueprints');
